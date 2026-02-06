@@ -1,0 +1,13 @@
+export { BimOpenSchemaLoader, loadBimGeometryFromZip } from './bimOpenSchemaLoader';
+export { BimData } from './bimData';
+export type { EntityIndex, StringIndex, InstanceIndex, DescriptorIndex } from './bimData';
+export type { BimGeometry } from './bimGeometry';
+export type { BimEntities } from './bimEntities';
+export { BimResolver } from './bimResolver';
+export type { Parameter } from './bimResolver';
+export { BimQuery } from './bimQuery';
+export { buildInstances, computeTransforms } from './buildInstances';
+export type { Instance } from './buildInstances';
+export { buildGeometry, createInstancedMeshes, createMergedAndSingleMeshes, mergeGeometries } from './buildGeometryGroup';
+export type { BimParameterDescriptors } from './BimParameterDescriptors';
+export type { BimParameterTable } from './BimParameterTable';

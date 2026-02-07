@@ -16,7 +16,7 @@ export interface BimGeometry {
     InstanceTransformIndex: Int32Array;
 
     // Index of the transform associated with each instance
-    InstanceFlags: Uint8Array;
+    InstanceFlags?: Uint8Array;
 
     //========================================
     // VertexBuffer table

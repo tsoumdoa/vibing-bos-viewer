@@ -18,68 +18,64 @@ export function buildGeometry(instances: Array<Instance | undefined>): THREE.Gro
     const nonInstancedMeshes = createMergedAndSingleMeshes(materialGroups);
 
     let polyCount = 0;
+    let drawCalls = 0;
+
     for (const im of instancedMeshes) {
         const indexCount = im.geometry.index?.count ?? 0;
         polyCount += (indexCount / 3) * im.count;
+        drawCalls++;
         root.add(im);
     }
 
     for (const nim of nonInstancedMeshes) {
         const indexCount = nim.geometry.index?.count ?? 0;
         polyCount += indexCount / 3;
+        drawCalls++;
         root.add(nim);
     }
 
-    // Convert Z-Up to Y-Up (for BOS geometry)
     root.rotation.x = -Math.PI / 2;
 
     console.timeEnd('Building geometry');
+    console.log(`[Optimization] Polygons: ${polyCount.toLocaleString()}, Draw Calls: ${drawCalls}, Instanced Meshes: ${instancedMeshes.length}, Merged Meshes: ${nonInstancedMeshes.length}`);
+
     return root;
 }
 
 export function createMergedAndSingleMeshes(materialGroups: Array<InstanceMaterialGroup>)
-    : Array<THREE.Mesh> 
+    : Array<THREE.Mesh>
 {
     const r: THREE.Mesh[] = [];
 
-    for (const materialGroup of materialGroups) 
+    for (const materialGroup of materialGroups)
     {
         const n = materialGroup.instances.length;
         if (n === 0) continue;
 
         const material = materialGroup.material;
-        
-        if (n === 1) {
-            const i = materialGroup.instances[0];
-            const mesh = new THREE.Mesh(i.geometry, i.material);
-            mesh.matrixAutoUpdate = false;
-            mesh.matrix.copy(i.transform);
-            // Attach pick metadata for single mesh
-            mesh.userData.pick = {
-                kind: 'single',
-                instanceIndex: i.instance
-            };
-            r.push(mesh);
-            continue;
-        }
-
         const geomsToMerge: THREE.BufferGeometry[] = [];
         const instanceIndices: number[] = [];
 
         for (const i of materialGroup.instances) {
-            // IMPORTANT: i.geometry is shared across instances/rebuilds, so never mutate it.
-            // Clone before applying transforms to avoid corrupting the original geometry.
+            const posAttr = i.geometry.getAttribute('position');
+            const indexAttr = i.geometry.getIndex();
+
+            if (!posAttr || posAttr.count === 0) continue;
+            if (indexAttr && indexAttr.count === 0) continue;
+
             const geom = i.isIdentity ? i.geometry : i.geometry.clone().applyMatrix4(i.transform);
             geomsToMerge.push(geom);
             instanceIndices.push(i.instance);
         }
 
+        if (geomsToMerge.length === 0) continue;
+
         const { geometry: mergedGeometry, triToInstanceIndex } = mergeGeometries(geomsToMerge);
         const mergedMesh = new THREE.Mesh(mergedGeometry, material);
-        // Use material uuid as identifier since Id property doesn't exist
         mergedMesh.name = `MergedStatic_Material_${material.uuid}`;
-        // Attach pick metadata for merged mesh
-        // Map triangle index to instance index, then use instanceIndices array to get actual InstanceIndex
+        mergedMesh.matrixAutoUpdate = false;
+        mergedMesh.matrixWorldNeedsUpdate = false;
+
         const triToInstanceIndexMap = new Uint32Array(triToInstanceIndex.length);
         for (let i = 0; i < triToInstanceIndex.length; i++) {
             triToInstanceIndexMap[i] = instanceIndices[triToInstanceIndex[i]];
@@ -99,65 +95,62 @@ export function mergeGeometries(geometries: Array<THREE.BufferGeometry>)
 {
     let indexCount = 0;
     let posCount = 0;
+    let validGeoms: number[] = [];
 
-    // First pass: gather counts
     for (let i = 0, l = geometries.length; i < l; i++) {
         const geometry = geometries[i];
         const index = geometry.getIndex();
         const position = geometry.getAttribute('position');
-        if (index) {
-            indexCount += index.count;
-        }
+
+        if (!position || position.count === 0) continue;
+        if (!index || index.count === 0) continue;
+
+        indexCount += index.count;
         posCount += position.count;
+        validGeoms.push(i);
     }
 
-    // Allocated data structures
+    if (validGeoms.length === 0) {
+        const emptyGeom = new THREE.BufferGeometry();
+        return { geometry: emptyGeom, triToInstanceIndex: new Uint32Array(0) };
+    }
+
     const mergedPositions = new Float32Array(posCount * 3);
     const mergedIndices = new Uint32Array(indexCount);
-    // Map triangle index (faceIndex) to instance index
     const triToInstanceIndex = new Uint32Array(indexCount / 3);
 
     let indexOffset = 0;
     let vertexOffset = 0;
 
-    // Second pass: copy data and build triangle-to-instance mapping
-    for (let i = 0, l = geometries.length; i < l; i++) {
-        const geometry = geometries[i];
-
+    for (const geomIndex of validGeoms) {
+        const geometry = geometries[geomIndex];
         const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
-        const indexAttr = geometry.getIndex() as THREE.BufferAttribute | null;
-
-        if (!indexAttr) continue;
+        const indexAttr = geometry.getIndex() as THREE.BufferAttribute;
 
         const srcPosArray = posAttr.array as Float32Array;
         const srcIndexArray = indexAttr.array as Int32Array;
 
         const vertCount = posAttr.count;
         const idxCount = indexAttr.count;
-        const posItemSize = posAttr.itemSize; 
+        const posItemSize = posAttr.itemSize;
         const triCount = idxCount / 3;
 
         const srcPosLength = vertCount * posItemSize;
         const dstPosOffset = vertexOffset * posItemSize;
-        mergedPositions.set(
-            srcPosArray.subarray(0, srcPosLength),
-            dstPosOffset
-        );
+        mergedPositions.set(srcPosArray.subarray(0, srcPosLength), dstPosOffset);
 
-        for (let j = 0; j < idxCount; j++) 
+        for (let j = 0; j < idxCount; j++)
             mergedIndices[indexOffset + j] = srcIndexArray[j] + vertexOffset;
 
-        // Map each triangle in this instance to its instance index
         const triStart = indexOffset / 3;
         for (let triIdx = 0; triIdx < triCount; triIdx++) {
-            triToInstanceIndex[triStart + triIdx] = i;
+            triToInstanceIndex[triStart + triIdx] = geomIndex;
         }
 
         vertexOffset += vertCount;
         indexOffset += idxCount;
     }
 
-    // Build merged geometry
     const mergedGeom = new THREE.BufferGeometry();
     mergedGeom.setAttribute('position', new THREE.BufferAttribute(mergedPositions, 3));
     mergedGeom.setIndex(new THREE.BufferAttribute(mergedIndices, 1));
@@ -204,22 +197,24 @@ export function gatherSingleInstancesByMaterial(groups: GroupedInstances)
 }
 
 export function createInstancedMeshes(instanceGroups: GroupedInstances)
-    : Array<THREE.InstancedMesh> 
+    : Array<THREE.InstancedMesh>
 {
     const r = new Array<THREE.InstancedMesh>();
-    for (const [material, meshGroups] of instanceGroups) 
+    for (const [material, meshGroups] of instanceGroups)
     {
-        for (const [geometry, instances] of meshGroups) 
+        for (const [geometry, instances] of meshGroups)
         {
             const count = instances.length;
 
-            if (count <= 1) 
+            if (count <= 1)
                 continue;
+
+            const posAttr = geometry.getAttribute('position');
+            if (!posAttr || posAttr.count === 0) continue;
 
             const instanced = new THREE.InstancedMesh(geometry, material, count);
             instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 
-            // Build instanceId -> InstanceIndex mapping for pick metadata
             const instanceIndices = new Uint32Array(count);
             for (let i = 0; i < count; i++) {
                 instanced.setMatrixAt(i, instances[i].transform);
@@ -229,7 +224,6 @@ export function createInstancedMeshes(instanceGroups: GroupedInstances)
             instanced.frustumCulled = false;
             instanced.matrixAutoUpdate = false;
             instanced.matrixWorldNeedsUpdate = false;
-            // Attach pick metadata for instanced mesh
             instanced.userData.pick = {
                 kind: 'instanced',
                 instanceIndices: instanceIndices

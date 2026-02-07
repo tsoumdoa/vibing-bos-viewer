@@ -16,10 +16,13 @@ interface Ara3DViewerProps {
     position?: [number, number, number];
     target?: [number, number, number];
     fov?: number;
+    near?: number;
+    far?: number;
   };
   environment?: {
     background?: string | THREE.Color;
     ground?: boolean;
+    grid?: boolean;
     lights?: boolean;
   };
   onLoad?: () => void;
@@ -31,7 +34,7 @@ export function Ara3DViewer({
   className,
   style,
   camera = {},
-  environment = { ground: true, lights: true },
+  environment = { ground: true, lights: true, grid: true },
   onLoad
 }: Ara3DViewerProps) {
   // Use onLoad via effects if needed
@@ -41,7 +44,9 @@ export function Ara3DViewer({
 
   const defaultCamera = {
     position: camera.position || [50, 50, 50] as [number, number, number],
-    fov: camera.fov || 50
+    fov: camera.fov || 50,
+    near: camera.near || 1,
+    far: camera.far || 5000
   };
 
   return (
@@ -49,7 +54,7 @@ export function Ara3DViewer({
       <Canvas
         camera={defaultCamera}
         gl={async (props) => {
-          return createRendererWithFallback({ antialias: true, alpha: true, ...props });
+          return createRendererWithFallback({ antialias: true, alpha: true, logarithmicDepthBuffer: true, ...props });
         }}
         shadows
         style={{ background: environment.background as string || '#1a1a1a' }}
@@ -66,6 +71,7 @@ interface SceneContentProps {
   children?: React.ReactNode;
   environment: {
     ground?: boolean;
+    grid?: boolean;
     lights?: boolean;
   };
 }
@@ -101,19 +107,20 @@ function SceneContent({ children, environment }: SceneContentProps) {
         </>
       )}
       
-      {environment.ground && (
+      {environment.ground && (environment.grid !== false) && (
         <Grid
-          position={[0, -0.01, 0]}
-          args={[100, 100]}
-          cellSize={5}
-          cellThickness={0.5}
-          cellColor="#444444"
-          sectionSize={25}
-          sectionThickness={1}
-          sectionColor="#666666"
-          fadeDistance={200}
+          position={[0, -1, 0]}
+          args={[200, 200]}
+          cellSize={10}
+          cellThickness={0.05}
+          cellColor="#222222"
+          sectionSize={50}
+          sectionThickness={0.1}
+          sectionColor="#333333"
+          fadeDistance={1000}
           fadeStrength={1}
           infiniteGrid
+          renderOrder={-1}
         />
       )}
 
@@ -121,8 +128,8 @@ function SceneContent({ children, environment }: SceneContentProps) {
         enablePan={true}
         enableZoom={true}
         enableRotate={true}
-        minDistance={1}
-        maxDistance={1000}
+        minDistance={5}
+        maxDistance={2000}
       />
 
       {children}

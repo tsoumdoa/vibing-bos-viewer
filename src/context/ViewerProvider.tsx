@@ -23,7 +23,8 @@ const initialState: ViewerState = {
   selection: {
     selectedInstances: new Set(),
     hoveredInstance: null
-  }
+  },
+  clayMode: false
 };
 
 type Action =
@@ -40,7 +41,8 @@ type Action =
   | { type: 'CLEAR_SELECTION' }
   | { type: 'SET_HOVERED'; payload: number | null }
   | { type: 'RESET_CAMERA' }
-  | { type: 'FIT_TO_VIEW' };
+  | { type: 'FIT_TO_VIEW' }
+  | { type: 'TOGGLE_CLAY_MODE' };
 
 function viewerReducer(state: ViewerState, action: Action): ViewerState {
   switch (action.type) {
@@ -92,6 +94,8 @@ function viewerReducer(state: ViewerState, action: Action): ViewerState {
       return { ...state, camera: defaultCamera };
     case 'FIT_TO_VIEW':
       return state;
+    case 'TOGGLE_CLAY_MODE':
+      return { ...state, clayMode: !state.clayMode };
     default:
       return state;
   }
@@ -116,7 +120,8 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     clearSelection: () => dispatch({ type: 'CLEAR_SELECTION' }),
     setHoveredInstance: (index) => dispatch({ type: 'SET_HOVERED', payload: index }),
     resetCamera: () => dispatch({ type: 'RESET_CAMERA' }),
-    fitToView: () => dispatch({ type: 'FIT_TO_VIEW' })
+    fitToView: () => dispatch({ type: 'FIT_TO_VIEW' }),
+    toggleClayMode: () => dispatch({ type: 'TOGGLE_CLAY_MODE' })
   }), []);
 
   const value = useMemo(() => ({ ...state, ...actions }), [state, actions]);

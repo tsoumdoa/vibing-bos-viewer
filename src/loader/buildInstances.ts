@@ -116,6 +116,7 @@ function computeMeshGeometries(bim: BimGeometry)
         const geom = new THREE.BufferGeometry();
         geom.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
         geom.setIndex(new THREE.BufferAttribute(indexArray, 1));
+        geom.computeVertexNormals();
         meshGeometries[mi] = geom;
     }
 
@@ -131,12 +132,12 @@ function computeMaterialKeys(bim: BimGeometry): string[] {
     const keys: string[] = new Array(numMaterials);
 
     for (let mi = 0; mi < numMaterials; mi++) {
-        const r = Math.round(bim.MaterialRed[mi] / 255 * 32) / 32; // Quantize to reduce unique materials
-        const g = Math.round(bim.MaterialGreen[mi] / 255 * 32) / 32;
-        const b = Math.round(bim.MaterialBlue[mi] / 255 * 32) / 32;
+        const r = Math.round(bim.MaterialRed[mi] / 255 * 16) / 16; // Quantize to 16 levels (more aggressive)
+        const g = Math.round(bim.MaterialGreen[mi] / 255 * 16) / 16;
+        const b = Math.round(bim.MaterialBlue[mi] / 255 * 16) / 16;
         const a = bim.MaterialAlpha[mi] / 255;
-        const roughness = Math.round(bim.MaterialRoughness[mi] / 255 * 8) / 8;
-        const metalness = Math.round(bim.MaterialMetallic[mi] / 255 * 8) / 8;
+        const roughness = Math.round(bim.MaterialRoughness[mi] / 255 * 4) / 4; // Quantize to 4 levels
+        const metalness = Math.round(bim.MaterialMetallic[mi] / 255 * 4) / 4;
         
         const isTransparent = a < 0.999;
         

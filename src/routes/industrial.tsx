@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Ara3DViewer, ViewerScene } from '@/components/viewer/Ara3DViewer';
-import { ViewerProvider } from '@/context/ViewerProvider';
+import { ViewerProvider, useViewerContext } from '@/context/ViewerProvider';
 import { FileDropZone } from '@/components/ui/FileDropZone';
 import { useFilters } from '@/hooks/useFilters';
 import { useSelection } from '@/hooks/useSelection';
@@ -136,9 +136,21 @@ function CommandCenterViewer() {
 function ModelStats({ data }: { data: BimData }) {
   const { categories, levels, activeCategories, activeLevels, toggleCategory, toggleLevel } = useFilters(data);
   const { selectedInstances, clear } = useSelection();
+  const { clayMode, toggleClayMode } = useViewerContext();
 
   return (
     <div className="flex-1 overflow-auto p-4 space-y-4">
+      <button
+        onClick={toggleClayMode}
+        className={`w-full py-2.5 rounded text-xs font-bold tracking-wider border-2 transition-all ${
+          clayMode
+            ? 'bg-white text-neutral-900 border-white hover:bg-neutral-200'
+            : 'bg-neutral-800 text-neutral-100 border-neutral-700 hover:border-orange-500'
+        }`}
+      >
+        {clayMode ? '◇ SHOW COLORS' : '◈ CLAY MODE'}
+      </button>
+
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-neutral-800/50 border border-neutral-700 rounded p-3">
           <div className="text-[10px] text-neutral-500 mb-1">ENTITIES</div>

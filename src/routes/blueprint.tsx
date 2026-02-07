@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Ara3DViewer, ViewerScene } from '@/components/viewer/Ara3DViewer';
-import { ViewerProvider } from '@/context/ViewerProvider';
+import { ViewerProvider, useViewerContext } from '@/context/ViewerProvider';
 import { FileDropZone } from '@/components/ui/FileDropZone';
 import { useFilters } from '@/hooks/useFilters';
 import { useSelection } from '@/hooks/useSelection';
@@ -334,12 +334,24 @@ function EmptyState() {
 function BlueprintStats({ data }: { data: BimData }) {
   const { categories, levels, activeCategories, activeLevels, toggleCategory, toggleLevel } = useFilters(data);
   const { selectedInstances, clear } = useSelection();
+  const { clayMode, toggleClayMode } = useViewerContext();
   const [expandedSection, setExpandedSection] = useState<string | null>('categories');
 
   return (
     <div className="flex-1 overflow-auto">
       {/* Project Info */}
       <div className="p-4 border-b border-slate-700 bg-slate-800/30">
+        <button
+          onClick={toggleClayMode}
+          className={`w-full py-2.5 rounded text-xs font-bold tracking-wider border-2 transition-all mb-3 ${
+            clayMode
+              ? 'bg-cyan-400 text-slate-900 border-cyan-400 hover:bg-cyan-300'
+              : 'bg-slate-800 text-cyan-400 border-slate-700 hover:border-cyan-400'
+          }`}
+        >
+          {clayMode ? '◇ SHOW COLORS' : '◈ CLAY MODE'}
+        </button>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-950 rounded border border-slate-700 p-3">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Entities</div>

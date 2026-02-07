@@ -26,6 +26,7 @@ export interface ViewerState {
   camera: ViewerCamera;
   filters: ViewerFilters;
   selection: ViewerSelection;
+  clayMode: boolean;
 }
 
 export interface ViewerActions {
@@ -43,6 +44,7 @@ export interface ViewerActions {
   setHoveredInstance: (instanceIndex: number | null) => void;
   resetCamera: () => void;
   fitToView: () => void;
+  toggleClayMode: () => void;
 }
 
 export type ViewerContextValue = ViewerState & ViewerActions;

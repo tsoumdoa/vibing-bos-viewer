@@ -146,8 +146,17 @@ interface SceneContentProps {
 }
 
 function SceneContent({ children, environment }: SceneContentProps) {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   const context = useViewerContext();
+
+  const clayMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.8,
+      metalness: 0.1,
+      side: THREE.FrontSide,
+    });
+  }, []);
 
   useEffect(() => {
     if (camera && context.setCamera) {
@@ -156,6 +165,10 @@ function SceneContent({ children, environment }: SceneContentProps) {
       });
     }
   }, [camera, context]);
+
+  useEffect(() => {
+    scene.overrideMaterial = context.clayMode ? clayMaterial : null;
+  }, [context.clayMode, clayMaterial, scene]);
 
   return (
     <>

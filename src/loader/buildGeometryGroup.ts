@@ -4,11 +4,11 @@ import { Instance } from './buildInstances';
 // Configuration for draw call optimization
 const OPTIMIZATION_CONFIG = {
     // Maximum vertices per merged mesh (to avoid GPU memory issues)
-    MAX_MERGED_VERTICES: 500000,
+    MAX_MERGED_VERTICES: 1000000,
     // Maximum instances per BatchedMesh - WebGPU can handle much larger batches than WebGL
-    MAX_BATCHED_INSTANCES: 50000,
-    // Threshold for using InstancedMesh vs merged geometry
-    INSTANCE_THRESHOLD: 2,
+    MAX_BATCHED_INSTANCES: 100000,
+    // Threshold for using InstancedMesh vs merged geometry (higher = fewer draw calls, more memory)
+    INSTANCE_THRESHOLD: 10,
     // Whether to use BatchedMesh (WebGPU optimized)
     USE_BATCHED_MESH: true,
 };
@@ -34,6 +34,14 @@ export function buildGeometry(instances: Array<Instance | undefined>): THREE.Gro
     
     // Group instances by material and geometry
     const instanceGroups = groupInstances(validInstances);
+    
+    // Log grouping statistics
+    let uniqueMaterialGeometryPairs = 0;
+    for (const [_, meshGroups] of instanceGroups) {
+        uniqueMaterialGeometryPairs += meshGroups.size;
+    }
+    console.log(`Unique (material, geometry) pairs: ${uniqueMaterialGeometryPairs}`);
+    console.log(`Optimization config:`, OPTIMIZATION_CONFIG);
     
     // Separate opaque and transparent for proper rendering order
     const { opaque, transparent } = separateByTransparency(instanceGroups);
@@ -86,6 +94,8 @@ function createOptimizedMeshes(groups: GroupedInstances, isTransparent: boolean)
             }
         }
     }
+    
+    console.log(`  ${isTransparent ? 'Transparent' : 'Opaque'}: ${instancedCandidates.length} instanced candidates, ${singleInstances.length} single instances`);
     
     // Create InstancedMeshes for high-count instances
     for (const candidate of instancedCandidates) {
@@ -301,21 +311,25 @@ export function mergeGeometries(geometries: Array<THREE.BufferGeometry>)
 {
     let indexCount = 0;
     let posCount = 0;
+    let hasNormals = true;
 
     // First pass: gather counts
     for (let i = 0, l = geometries.length; i < l; i++) {
         const geometry = geometries[i];
         const index = geometry.getIndex();
         const position = geometry.getAttribute('position');
+        const normal = geometry.getAttribute('normal');
         if (index) {
             indexCount += index.count;
         }
         posCount += position.count;
+        if (!normal) hasNormals = false;
     }
 
     // Allocated data structures
     const mergedPositions = new Float32Array(posCount * 3);
     const mergedIndices = new Uint32Array(indexCount);
+    const mergedNormals = hasNormals ? new Float32Array(posCount * 3) : null;
     const triToInstanceIndex = new Uint32Array(indexCount / 3);
 
     let indexOffset = 0;
@@ -345,6 +359,18 @@ export function mergeGeometries(geometries: Array<THREE.BufferGeometry>)
             dstPosOffset
         );
 
+        // Copy normals if they exist
+        if (hasNormals && mergedNormals) {
+            const normalAttr = geometry.getAttribute('normal') as THREE.BufferAttribute;
+            const srcNormalArray = normalAttr.array as Float32Array;
+            const srcNormalLength = vertCount * normalAttr.itemSize;
+            const dstNormalOffset = vertexOffset * normalAttr.itemSize;
+            mergedNormals.set(
+                srcNormalArray.subarray(0, srcNormalLength),
+                dstNormalOffset
+            );
+        }
+
         for (let j = 0; j < idxCount; j++) 
             mergedIndices[indexOffset + j] = srcIndexArray[j] + vertexOffset;
 
@@ -360,6 +386,12 @@ export function mergeGeometries(geometries: Array<THREE.BufferGeometry>)
     const mergedGeom = new THREE.BufferGeometry();
     mergedGeom.setAttribute('position', new THREE.BufferAttribute(mergedPositions, 3));
     mergedGeom.setIndex(new THREE.BufferAttribute(mergedIndices, 1));
+    
+    if (hasNormals && mergedNormals) {
+        mergedGeom.setAttribute('normal', new THREE.BufferAttribute(mergedNormals, 3));
+    } else {
+        mergedGeom.computeVertexNormals();
+    }
     
     // Compute bounding box for better culling
     mergedGeom.computeBoundingBox();

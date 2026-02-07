@@ -1,9 +1,12 @@
 import React, { useRef, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, extend, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { useViewerContext } from '@/context/ViewerProvider';
 import { BimData } from '@/loader';
+import { createRendererWithFallback } from '@/utils/renderer';
+
+extend(THREE as any);
 
 interface Ara3DViewerProps {
   children?: React.ReactNode;
@@ -45,7 +48,9 @@ export function Ara3DViewer({
     <div className={className} style={{ width: '100%', height: '100%', ...style }}>
       <Canvas
         camera={defaultCamera}
-        gl={{ antialias: true, alpha: true }}
+        gl={async (props) => {
+          return createRendererWithFallback({ antialias: true, alpha: true, ...props });
+        }}
         shadows
         style={{ background: environment.background as string || '#1a1a1a' }}
       >

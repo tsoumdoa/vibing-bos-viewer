@@ -37,7 +37,7 @@ export function buildInstances(bg: BimGeometry): Array<Instance | undefined> {
         const meshIndex = bg.InstanceMeshIndex[i];        
         if (meshIndex < 0) continue;
 
-        const flag = bg.InstanceFlags[i];
+        const flag = bg.InstanceFlags?.[i] ?? 0;
 
         // Check if the "hidden" flag is set. 
         if (flag & 0x1) continue;

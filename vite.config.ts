@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     return {
       plugins: [react(), dts({ include: ["src"], insertTypesEntry: true })],
       build: {
+        target: 'esnext',
         lib: {
           entry: resolve(__dirname, "src/index.ts"),
           name: "Ara3DReactWebGL",
@@ -35,6 +36,9 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
+      optimizeDeps: {
+        exclude: ["three"]
+      },
     };
   }
 
@@ -45,5 +49,11 @@ export default defineConfig(({ mode }) => {
         "@": resolve(__dirname, "src"),
       },
     },
+    optimizeDeps: {
+      exclude: ["three"]
+    },
+    build: {
+      target: 'esnext',
+    }
   };
 });

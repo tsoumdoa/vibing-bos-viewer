@@ -10,16 +10,29 @@ export type Instance = {
     geometry: THREE.BufferGeometry;
     material: THREE.Material;
     transform: THREE.Matrix4;
+    materialKey: string;
+    isTransparent: boolean;
 };
+
+// Material cache to reduce draw calls by reusing materials
+const materialCache = new Map<string, THREE.MeshStandardMaterial>();
+
+export function clearMaterialCache(): void {
+    materialCache.clear();
+}
 
 export function buildInstances(bg: BimGeometry): Array<Instance | undefined> {
     console.time("Building instances");
+    
     const transforms = computeTransforms(bg);
     const geometries = computeMeshGeometries(bg);
-    const materials = computeMaterials(bg);
+    const materialKeys = computeMaterialKeys(bg);
+    const materials = computeMaterials(bg, materialKeys);
+    
     const instanceCount = bg.InstanceMeshIndex.length;
     const instances = new Array<Instance | undefined>(instanceCount);
     const identity = new THREE.Matrix4;
+    
     for (let i = 0; i < instanceCount; i++) {        
         const meshIndex = bg.InstanceMeshIndex[i];        
         if (meshIndex < 0) continue;
@@ -34,10 +47,15 @@ export function buildInstances(bg: BimGeometry): Array<Instance | undefined> {
         // Skip instances with missing geometry (meshes with 0 vertices/indices)
         if (!geometry) continue;
         
-        const material = materials[bg.InstanceMaterialIndex[i]];
+        const materialIndex = bg.InstanceMaterialIndex[i];
+        const material = materials[materialIndex];
+        const materialKey = materialKeys[materialIndex];
         const transform = transforms[bg.InstanceTransformIndex[i]];
         const entity = bg.InstanceEntityIndex[i] as EntityIndex;
         const isIdentity = transform.equals(identity);
+        
+        // Check if material is transparent
+        const isTransparent = material.transparent;
         
         instances[i] = {
             instance: i as InstanceIndex,
@@ -45,10 +63,15 @@ export function buildInstances(bg: BimGeometry): Array<Instance | undefined> {
             material,
             transform,
             entity,
-            isIdentity
+            isIdentity,
+            materialKey,
+            isTransparent
         };
     }
+    
     console.timeEnd("Building instances");
+    console.log(`Created ${instances.filter(i => i !== undefined).length} instances with ${materialCache.size} unique materials`);
+    
     return instances;
 }
 
@@ -99,13 +122,46 @@ function computeMeshGeometries(bim: BimGeometry)
     return meshGeometries;
 }
 
-function computeMaterials(bim: BimGeometry)
+/**
+ * Compute material keys for aggressive batching
+ * Materials with similar properties will share the same key
+ */
+function computeMaterialKeys(bim: BimGeometry): string[] {
+    const numMaterials = bim.MaterialAlpha.length;
+    const keys: string[] = new Array(numMaterials);
+
+    for (let mi = 0; mi < numMaterials; mi++) {
+        const r = Math.round(bim.MaterialRed[mi] / 255 * 32) / 32; // Quantize to reduce unique materials
+        const g = Math.round(bim.MaterialGreen[mi] / 255 * 32) / 32;
+        const b = Math.round(bim.MaterialBlue[mi] / 255 * 32) / 32;
+        const a = bim.MaterialAlpha[mi] / 255;
+        const roughness = Math.round(bim.MaterialRoughness[mi] / 255 * 8) / 8;
+        const metalness = Math.round(bim.MaterialMetallic[mi] / 255 * 8) / 8;
+        
+        const isTransparent = a < 0.999;
+        
+        // Create key that groups similar materials
+        keys[mi] = `${r.toFixed(3)},${g.toFixed(3)},${b.toFixed(3)},${isTransparent ? 'T' : 'O'},${roughness.toFixed(2)},${metalness.toFixed(2)}`;
+    }
+    
+    return keys;
+}
+
+function computeMaterials(bim: BimGeometry, materialKeys: string[])
     : Array<THREE.MeshStandardMaterial> 
 {
     const numMaterials = bim.MaterialAlpha.length;
     const materials = new Array<THREE.MeshStandardMaterial>(numMaterials);
 
     for (let mi = 0; mi < numMaterials; mi++) {
+        const key = materialKeys[mi];
+        
+        // Check cache first
+        if (materialCache.has(key)) {
+            materials[mi] = materialCache.get(key)!;
+            continue;
+        }
+        
         const r = bim.MaterialRed[mi] / 255;
         const g = bim.MaterialGreen[mi] / 255;
         const b = bim.MaterialBlue[mi] / 255;
@@ -121,10 +177,15 @@ function computeMaterials(bim: BimGeometry)
             roughness,
             metalness,
             side: THREE.DoubleSide,
+            depthWrite: a >= 0.999,
+            alphaTest: 0.01,
+            polygonOffset: false,
         });
 
         materials[mi] = mat;
+        materialCache.set(key, mat);
     }
+    
     return materials;
 }
 

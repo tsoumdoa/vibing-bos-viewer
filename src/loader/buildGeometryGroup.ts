@@ -217,6 +217,9 @@ export function createInstancedMeshes(instanceGroups: GroupedInstances)
                 continue;
 
             const instanced = new THREE.InstancedMesh(geometry, material, count);
+            
+            // WebGPU optimization: Set instance matrix usage to static for better GPU performance
+            // This allows WebGPU to better optimize memory and rendering
             instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 
             // Build instanceId -> InstanceIndex mapping for pick metadata
@@ -226,9 +229,16 @@ export function createInstancedMeshes(instanceGroups: GroupedInstances)
                 instanceIndices[i] = instances[i].instance;
             }
 
-            instanced.frustumCulled = false;
+            // WebGPU optimization: Enable frustum culling for better performance
+            // WebGPU handles frustum culling much more efficiently than WebGL
+            instanced.frustumCulled = true;
             instanced.matrixAutoUpdate = false;
             instanced.matrixWorldNeedsUpdate = false;
+            
+            // WebGPU optimization: Set cast and receive shadow for consistent rendering
+            instanced.castShadow = true;
+            instanced.receiveShadow = true;
+            
             // Attach pick metadata for instanced mesh
             instanced.userData.pick = {
                 kind: 'instanced',

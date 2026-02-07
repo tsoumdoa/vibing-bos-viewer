@@ -1,9 +1,11 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
+import { WebGPURenderer } from 'three/webgpu';
 import { useViewerContext } from '@/context/ViewerProvider';
 import { BimData } from '@/loader';
+import { isWebGPUSupported } from '@/renderer/webgpuRenderer';
 
 interface Ara3DViewerProps {
   children?: React.ReactNode;
@@ -21,6 +23,9 @@ interface Ara3DViewerProps {
   };
   onLoad?: () => void;
   onError?: (error: Error) => void;
+  fallbackToWebGL?: boolean;
+  forceWebGL?: boolean;
+  useWebGPU?: boolean;
 }
 
 export function Ara3DViewer({
@@ -29,23 +34,95 @@ export function Ara3DViewer({
   style,
   camera = {},
   environment = { ground: true, lights: true },
-  onLoad
+  onLoad,
+  onError,
+  fallbackToWebGL = true,
+  forceWebGL = false,
+  useWebGPU: useWebGPUProp = true
 }: Ara3DViewerProps) {
-  // Use onLoad via effects if needed
-  React.useEffect(() => {
-    if (onLoad) onLoad();
-  }, [onLoad]);
+  const [error, setError] = useState<Error | null>(null);
+  const [useWebGL, setUseWebGL] = useState(forceWebGL);
+
+  useEffect(() => {
+    if (forceWebGL) {
+      setUseWebGL(true);
+      return;
+    }
+
+    if (useWebGPUProp && !isWebGPUSupported()) {
+      if (fallbackToWebGL) {
+        console.warn('WebGPU not supported, falling back to WebGL');
+        setUseWebGL(true);
+      } else {
+        const err = new Error('WebGPU not supported in this browser');
+        setError(err);
+        onError?.(err);
+      }
+    }
+  }, [fallbackToWebGL, forceWebGL, useWebGPUProp, onError]);
+
+  useEffect(() => {
+    if (onLoad && !error) {
+      onLoad();
+    }
+  }, [onLoad, error]);
 
   const defaultCamera = {
     position: camera.position || [50, 50, 50] as [number, number, number],
     fov: camera.fov || 50
   };
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full bg-neutral-900 text-white">
+        <div className="text-center">
+          <p className="text-red-400 mb-2">Renderer Error</p>
+          <p className="text-sm text-neutral-400">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const shouldUseWebGPU = useWebGPUProp && !useWebGL && !forceWebGL;
+
+  const glConfig = useMemo(() => {
+    if (!shouldUseWebGPU) {
+      return { antialias: true, alpha: true };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (props: any) => {
+      const renderer = new WebGPURenderer({
+        canvas: props.canvas,
+        antialias: true,
+        powerPreference: 'high-performance',
+      });
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.setClearColor(environment.background as string || '#1a1a1a', 0);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      
+      // Initialize WebGPU renderer
+      renderer.init().catch((err: Error) => {
+        console.error('WebGPU initialization failed:', err);
+        if (fallbackToWebGL) {
+          setUseWebGL(true);
+        } else {
+          setError(err);
+          onError?.(err);
+        }
+      });
+
+      return renderer;
+    };
+  }, [shouldUseWebGPU, environment.background, fallbackToWebGL, onError]);
+
   return (
     <div className={className} style={{ width: '100%', height: '100%', ...style }}>
       <Canvas
         camera={defaultCamera}
-        gl={{ antialias: true, alpha: true }}
+        gl={glConfig}
         shadows
         style={{ background: environment.background as string || '#1a1a1a' }}
       >
@@ -69,8 +146,7 @@ function SceneContent({ children, environment }: SceneContentProps) {
   const { camera } = useThree();
   const context = useViewerContext();
 
-  // Update context camera when R3F camera changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (camera && context.setCamera) {
       context.setCamera({
         position: camera.position.clone()
@@ -149,7 +225,7 @@ export function ViewerScene({
   const groupRef = useRef<THREE.Group>(null);
   const context = useViewerContext();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (data && context.setData) {
       context.setData(data);
     }
@@ -183,22 +259,16 @@ interface BimGeometryGroupProps {
 function BimGeometryGroup({ geometry, filters }: BimGeometryGroupProps) {
   const context = useViewerContext();
 
-  // Clone the geometry group to avoid mutating the original
   const clonedGroup = useMemo(() => {
     const clone = geometry.clone();
     
-    // Apply visibility filters
     if (filters?.visibleInstances && clone) {
       clone.traverse((child) => {
         if (child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh) {
-          // Handle visibility based on pick metadata
           const pickData = child.userData.pick;
           if (pickData) {
             if (pickData.kind === 'instanced') {
-              // For instanced meshes, we'll handle visibility at the instance level
-              // This is a simplified approach - full implementation would need instance-level visibility
             } else if (pickData.kind === 'merged') {
-              // For merged meshes, visibility is per-triangle, handled differently
             } else if (pickData.kind === 'single') {
               const instanceIndex = pickData.instanceIndex;
               child.visible = filters.visibleInstances!.has(instanceIndex);
@@ -222,13 +292,11 @@ function BimGeometryGroup({ geometry, filters }: BimGeometryGroupProps) {
       }}
       onClick={(e: any) => {
         e.stopPropagation();
-        // Handle selection logic here
         const pickData = e.object.userData.pick;
         if (pickData) {
           if (pickData.kind === 'single') {
             context.selectInstance(pickData.instanceIndex, e.shiftKey);
           } else if (pickData.kind === 'instanced') {
-            // Get instance index from intersection
             const intersection = e.intersections[0];
             if (intersection && intersection.instanceId !== undefined) {
               const instanceIndex = pickData.instanceIndices[intersection.instanceId];

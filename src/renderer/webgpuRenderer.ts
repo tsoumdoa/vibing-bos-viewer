@@ -16,7 +16,8 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<W
 
   await renderer.init();
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Cap pixel ratio at 1.5 for better performance (matching WebGL configuration)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 

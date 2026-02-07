@@ -169,16 +169,18 @@ function computeMaterials(bim: BimGeometry, materialKeys: string[])
         const roughness = bim.MaterialRoughness[mi] / 255;  
         const metalness = bim.MaterialMetallic[mi] / 255;
 
+        const isTransparent = a < 0.999;
         const mat = new THREE.MeshStandardMaterial({
             color: new THREE.Color(r, g, b),
             opacity: a,
             flatShading: true,
-            transparent: a < 0.999,
+            transparent: isTransparent,
             roughness,
             metalness,
-            side: THREE.DoubleSide,
-            depthWrite: a >= 0.999,
-            alphaTest: 0.01,
+            // Use FrontSide for opaque materials (2x performance), DoubleSide only for transparent
+            side: isTransparent ? THREE.DoubleSide : THREE.FrontSide,
+            depthWrite: !isTransparent,
+            // Remove alphaTest - not needed for solid colors and causes shader branching
             polygonOffset: false,
         });
 

@@ -99,12 +99,15 @@ export function Ara3DViewer({
       });
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.setClearColor(environment.background as string || '#1a1a1a', 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      // Cap pixel ratio at 1.5 for better performance (reduces fragment shader load)
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       
-      // Initialize WebGPU renderer
-      renderer.init().catch((err: Error) => {
+      // Initialize WebGPU renderer - must await before returning
+      renderer.init().then(() => {
+        console.log('WebGPU renderer initialized successfully');
+      }).catch((err: Error) => {
         console.error('WebGPU initialization failed:', err);
         if (fallbackToWebGL) {
           setUseWebGL(true);

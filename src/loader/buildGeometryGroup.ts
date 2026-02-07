@@ -5,8 +5,8 @@ import { Instance } from './buildInstances';
 const OPTIMIZATION_CONFIG = {
     // Maximum vertices per merged mesh (to avoid GPU memory issues)
     MAX_MERGED_VERTICES: 500000,
-    // Maximum instances per BatchedMesh
-    MAX_BATCHED_INSTANCES: 10000,
+    // Maximum instances per BatchedMesh - WebGPU can handle much larger batches than WebGL
+    MAX_BATCHED_INSTANCES: 50000,
     // Threshold for using InstancedMesh vs merged geometry
     INSTANCE_THRESHOLD: 2,
     // Whether to use BatchedMesh (WebGPU optimized)

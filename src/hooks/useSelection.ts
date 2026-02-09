@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useViewerContext } from '@/context/ViewerProvider';
+import { useViewerStore } from '@/stores/viewerStore';
 
 export interface UseSelectionResult {
   selectedInstances: Set<number>;
@@ -13,39 +13,43 @@ export interface UseSelectionResult {
 }
 
 export function useSelection(): UseSelectionResult {
-  const context = useViewerContext();
+  const selection = useViewerStore((state) => state.selection);
+  const selectInstance = useViewerStore((state) => state.selectInstance);
+  const deselectInstance = useViewerStore((state) => state.deselectInstance);
+  const clearSelection = useViewerStore((state) => state.clearSelection);
+  const setHoveredInstance = useViewerStore((state) => state.setHoveredInstance);
 
   const select = useCallback((index: number, multi: boolean = false) => {
-    context.selectInstance(index, multi);
-  }, [context]);
+    selectInstance(index, multi);
+  }, [selectInstance]);
 
   const deselect = useCallback((index: number) => {
-    context.deselectInstance(index);
-  }, [context]);
+    deselectInstance(index);
+  }, [deselectInstance]);
 
   const toggle = useCallback((index: number, multi: boolean = false) => {
-    if (context.selection.selectedInstances.has(index)) {
-      context.deselectInstance(index);
+    if (selection.selectedInstances.has(index)) {
+      deselectInstance(index);
     } else {
-      context.selectInstance(index, multi);
+      selectInstance(index, multi);
     }
-  }, [context]);
+  }, [selection.selectedInstances, deselectInstance, selectInstance]);
 
   const clear = useCallback(() => {
-    context.clearSelection();
-  }, [context]);
+    clearSelection();
+  }, [clearSelection]);
 
   const isSelected = useCallback((index: number) => {
-    return context.selection.selectedInstances.has(index);
-  }, [context.selection.selectedInstances]);
+    return selection.selectedInstances.has(index);
+  }, [selection.selectedInstances]);
 
   const setHovered = useCallback((index: number | null) => {
-    context.setHoveredInstance(index);
-  }, [context]);
+    setHoveredInstance(index);
+  }, [setHoveredInstance]);
 
   return {
-    selectedInstances: context.selection.selectedInstances,
-    hoveredInstance: context.selection.hoveredInstance,
+    selectedInstances: selection.selectedInstances,
+    hoveredInstance: selection.hoveredInstance,
     select,
     deselect,
     toggle,

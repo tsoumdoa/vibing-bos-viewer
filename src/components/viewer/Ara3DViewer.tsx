@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
-import { useViewerContext } from '@/context/ViewerProvider';
+import { useViewerStore } from '@/stores/viewerStore';
 import { BimData } from '@/loader';
 
 interface Ara3DViewerProps {
@@ -67,16 +67,16 @@ interface SceneContentProps {
 
 function SceneContent({ children, environment }: SceneContentProps) {
   const { camera } = useThree();
-  const context = useViewerContext();
+  const setCamera = useViewerStore((state) => state.setCamera);
 
-  // Update context camera when R3F camera changes
+  // Update store camera when R3F camera changes
   React.useEffect(() => {
-    if (camera && context.setCamera) {
-      context.setCamera({
+    if (camera) {
+      setCamera({
         position: camera.position.clone()
       });
     }
-  }, [camera, context]);
+  }, [camera, setCamera]);
 
   return (
     <>
@@ -147,13 +147,13 @@ export function ViewerScene({
   colors
 }: ViewerSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const context = useViewerContext();
+  const setData = useViewerStore((state) => state.setData);
 
   React.useEffect(() => {
-    if (data && context.setData) {
-      context.setData(data);
+    if (data) {
+      setData(data);
     }
-  }, [data, context]);
+  }, [data, setData]);
 
   if (!data?.ThreeGeometry) {
     return null;
@@ -181,7 +181,7 @@ interface BimGeometryGroupProps {
 }
 
 function BimGeometryGroup({ geometry, filters }: BimGeometryGroupProps) {
-  const context = useViewerContext();
+  const selectInstance = useViewerStore((state) => state.selectInstance);
 
   // Clone the geometry group to avoid mutating the original
   const clonedGroup = useMemo(() => {
@@ -226,13 +226,13 @@ function BimGeometryGroup({ geometry, filters }: BimGeometryGroupProps) {
         const pickData = e.object.userData.pick;
         if (pickData) {
           if (pickData.kind === 'single') {
-            context.selectInstance(pickData.instanceIndex, e.shiftKey);
+            selectInstance(pickData.instanceIndex, e.shiftKey);
           } else if (pickData.kind === 'instanced') {
             // Get instance index from intersection
             const intersection = e.intersections[0];
             if (intersection && intersection.instanceId !== undefined) {
               const instanceIndex = pickData.instanceIndices[intersection.instanceId];
-              context.selectInstance(instanceIndex, e.shiftKey);
+              selectInstance(instanceIndex, e.shiftKey);
             }
           }
         }

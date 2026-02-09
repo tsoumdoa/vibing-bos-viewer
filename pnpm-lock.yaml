@@ -47,6 +47,9 @@ importers:
       ste-simple-events:
         specifier: ^3.0.7
         version: 3.0.11
+      zustand:
+        specifier: ^5.0.11
+        version: 5.0.11(@types/react@19.2.13)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
     devDependencies:
       '@types/react':
         specifier: ^19.0.0

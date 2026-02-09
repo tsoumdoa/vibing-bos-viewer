@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useViewerContext } from '@/context/ViewerProvider';
+import { useViewerStore } from '@/stores/viewerStore';
 import { BimData } from '@/loader';
 
 export interface UseFiltersResult {
@@ -18,7 +18,10 @@ export interface UseFiltersResult {
 }
 
 export function useFilters(data: BimData | null): UseFiltersResult {
-  const context = useViewerContext();
+  const filters = useViewerStore((state) => state.filters);
+  const setFilters = useViewerStore((state) => state.setFilters);
+  const toggleCategory = useViewerStore((state) => state.toggleCategory);
+  const toggleLevel = useViewerStore((state) => state.toggleLevel);
 
   const categories = useMemo(() => {
     if (!data?.Query) return [];
@@ -35,8 +38,8 @@ export function useFilters(data: BimData | null): UseFiltersResult {
   const visibleInstances = useMemo(() => {
     if (!data?.Instances) return new Set<number>();
     
-    const activeCats = new Set(context.filters.categories);
-    const activeLevels = new Set(context.filters.levels);
+    const activeCats = new Set(filters.categories);
+    const activeLevels = new Set(filters.levels);
     
     // If no filters active, show all
     if (activeCats.size === 0 && activeLevels.size === 0) {
@@ -54,6 +57,7 @@ export function useFilters(data: BimData | null): UseFiltersResult {
       const levelParam = params?.find(p => p.Name === 'Rvt:Element:Level');
       const level = levelParam ? String(levelParam.Value) : '';
 
+      // Instance is visible if it matches at least one active filter (when filters are present)
       const catMatch = activeCats.size === 0 || activeCats.has(category);
       const levelMatch = activeLevels.size === 0 || activeLevels.has(level);
 
@@ -63,41 +67,33 @@ export function useFilters(data: BimData | null): UseFiltersResult {
     }
 
     return visible;
-  }, [data, context.filters.categories, context.filters.levels]);
+  }, [data, filters.categories, filters.levels]);
 
   const setCategoryFilter = useCallback((cats: string[]) => {
-    context.setFilters({ categories: cats });
-  }, [context]);
+    setFilters({ categories: cats });
+  }, [setFilters]);
 
   const setLevelFilter = useCallback((lvls: string[]) => {
-    context.setFilters({ levels: lvls });
-  }, [context]);
-
-  const toggleCategory = useCallback((cat: string) => {
-    context.toggleCategory(cat);
-  }, [context]);
-
-  const toggleLevel = useCallback((level: string) => {
-    context.toggleLevel(level);
-  }, [context]);
+    setFilters({ levels: lvls });
+  }, [setFilters]);
 
   const resetFilters = useCallback(() => {
-    context.setFilters({ categories: [], levels: [] });
-  }, [context]);
+    setFilters({ categories: [], levels: [] });
+  }, [setFilters]);
 
   const isCategoryActive = useCallback((cat: string) => {
-    return context.filters.categories.includes(cat);
-  }, [context.filters.categories]);
+    return filters.categories.includes(cat);
+  }, [filters.categories]);
 
   const isLevelActive = useCallback((level: string) => {
-    return context.filters.levels.includes(level);
-  }, [context.filters.levels]);
+    return filters.levels.includes(level);
+  }, [filters.levels]);
 
   return {
     categories,
     levels,
-    activeCategories: context.filters.categories,
-    activeLevels: context.filters.levels,
+    activeCategories: filters.categories,
+    activeLevels: filters.levels,
     visibleInstances,
     setCategoryFilter,
     setLevelFilter,

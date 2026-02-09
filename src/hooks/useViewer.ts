@@ -1,28 +1,34 @@
 import { useMemo } from 'react';
-import { useViewerContext } from '@/context/ViewerProvider';
+import { useViewerStore } from '@/stores/viewerStore';
 import { BimData, Instance } from '@/loader';
 
 export function useViewer() {
-  const context = useViewerContext();
+  const data = useViewerStore((state) => state.data);
+  const loading = useViewerStore((state) => state.loading);
+  const error = useViewerStore((state) => state.error);
+  const progress = useViewerStore((state) => state.progress);
+  const camera = useViewerStore((state) => state.camera);
+  const setCamera = useViewerStore((state) => state.setCamera);
+  const resetCamera = useViewerStore((state) => state.resetCamera);
+  const fitToView = useViewerStore((state) => state.fitToView);
   
   return {
-    data: context.data,
-    loading: context.loading,
-    error: context.error,
-    progress: context.progress,
-    camera: context.camera,
-    setCamera: context.setCamera,
-    resetCamera: context.resetCamera,
-    fitToView: context.fitToView
+    data,
+    loading,
+    error,
+    progress,
+    camera,
+    setCamera,
+    resetCamera,
+    fitToView
   };
 }
 
 export function useBimData(): BimData | null {
-  const { data } = useViewerContext();
-  return data;
+  return useViewerStore((state) => state.data);
 }
 
 export function useInstances(): Array<Instance | undefined> {
-  const { data } = useViewerContext();
+  const data = useViewerStore((state) => state.data);
   return useMemo(() => data?.Instances ?? [], [data]);
 }

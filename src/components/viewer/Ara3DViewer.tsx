@@ -195,10 +195,43 @@ function BimGeometryGroup({ geometry, filters }: BimGeometryGroupProps) {
           const pickData = child.userData.pick;
           if (pickData) {
             if (pickData.kind === 'instanced') {
-              // For instanced meshes, we'll handle visibility at the instance level
-              // This is a simplified approach - full implementation would need instance-level visibility
+              // For instanced meshes, check if ANY of the instances are visible
+              // If none are visible, hide the entire mesh
+              const indices = pickData.instanceIndices;
+              let hasVisibleInstance = true; // Default to visible
+              if (indices) {
+                hasVisibleInstance = false;
+                if (Array.isArray(indices)) {
+                  hasVisibleInstance = indices.some((idx: number) => 
+                    filters.visibleInstances!.has(idx)
+                  );
+                } else if (typeof indices.length === 'number') {
+                  // Handle typed arrays
+                  for (let i = 0; i < indices.length; i++) {
+                    if (filters.visibleInstances!.has(indices[i])) {
+                      hasVisibleInstance = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              child.visible = hasVisibleInstance;
             } else if (pickData.kind === 'merged') {
-              // For merged meshes, visibility is per-triangle, handled differently
+              // For merged meshes, visibility is per-triangle
+              // We can't easily hide individual triangles, so we show/hide based on if any are visible
+              const triToInstanceIndex = pickData.triToInstanceIndex;
+              let hasVisibleTriangle = true; // Default to visible
+              if (triToInstanceIndex) {
+                hasVisibleTriangle = false;
+                // triToInstanceIndex is a Uint32Array mapping triangle index to instance index
+                for (let i = 0; i < triToInstanceIndex.length; i++) {
+                  if (filters.visibleInstances!.has(triToInstanceIndex[i])) {
+                    hasVisibleTriangle = true;
+                    break;
+                  }
+                }
+              }
+              child.visible = hasVisibleTriangle;
             } else if (pickData.kind === 'single') {
               const instanceIndex = pickData.instanceIndex;
               child.visible = filters.visibleInstances!.has(instanceIndex);

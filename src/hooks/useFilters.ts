@@ -57,6 +57,7 @@ export function useFilters(data: BimData | null): UseFiltersResult {
       const levelParam = params?.find(p => p.Name === 'Rvt:Element:Level');
       const level = levelParam ? String(levelParam.Value) : '';
 
+      // Instance is visible if it matches at least one active filter (when filters are present)
       const catMatch = activeCats.size === 0 || activeCats.has(category);
       const levelMatch = activeLevels.size === 0 || activeLevels.has(level);
 
